@@ -1,0 +1,3 @@
+servershout:
+  channels:
+    - "SHOUT_CHANNEL"
