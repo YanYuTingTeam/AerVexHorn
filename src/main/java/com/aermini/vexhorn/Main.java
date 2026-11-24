@@ -40,10 +40,9 @@ public class Main extends JavaPlugin implements PluginMessageListener, Listener 
     private static final int FLOW_GAP = 10;
     private static final int FLOW_Z = 1;
     private static final int BACKGROUND_Z = 0;
-    private static final int BACKGROUND_HEIGHT = 18;
     private Set<String> channels = Collections.emptySet();
     private final Map<UUID, FlowState> flows = new HashMap<>();
-    private final Map<Integer, byte[]> backgroundImages = new HashMap<>();
+    private final Map<String, byte[]> backgroundImages = new HashMap<>();
     private BukkitRunnable flowTask;
     private int flowHeight;
     private double backgroundTransparency;
@@ -105,7 +104,8 @@ public class Main extends JavaPlugin implements PluginMessageListener, Listener 
                     || input.available() != 0) {
                 return;
             }
-            Runnable task = uuid == null ? () -> this.broadcast(text) : () -> this.send(uuid, text);
+            String safeText = FlowLayout.safeText(text);
+            Runnable task = uuid == null ? () -> this.broadcast(safeText) : () -> this.send(uuid, safeText);
             if (Bukkit.isPrimaryThread()) {
                 task.run();
             } else {
@@ -153,7 +153,12 @@ public class Main extends JavaPlugin implements PluginMessageListener, Listener 
         if (state.width <= 0) {
             state.width = this.getWindowWidth(player);
             state.height = this.getWindowHeight(player);
-            state.y = (int) Math.round(state.height * this.flowHeight / 100.0);
+        }
+
+        int requiredHeight = FlowLayout.backgroundHeight(text, state.height);
+        if (!state.backgroundSent || requiredHeight > state.backgroundHeight) {
+            state.backgroundHeight = Math.max(state.backgroundHeight, requiredHeight);
+            state.y = FlowLayout.textY(state.height, this.flowHeight, state.backgroundHeight);
             this.sendBackground(player, state);
         }
 
@@ -198,14 +203,14 @@ public class Main extends JavaPlugin implements PluginMessageListener, Listener 
 
     private void sendText(Player player, FlowState state, FlowMessage message) {
         int time = this.getFlowTime(state.width, message.width);
-        VexViewAPI.sendHUD(player, new VexTextShow(message.id, message.x, state.y, FLOW_Z,
-                this.splitText(message.text), time));
+        VexViewAPI.sendHUD(player, new VexTextShow(message.id, Math.max(0, message.x), state.y, FLOW_Z,
+                FlowLayout.visibleLines(message.text, message.x, state.height), time));
     }
 
     private void sendBackground(Player player, FlowState state) {
-        byte[] image = this.getBackgroundImage(state.width);
+        byte[] image = this.getBackgroundImage(state.width, state.backgroundHeight);
         VexBase64Image background = new VexBase64Image(new ByteArrayInputStream(image), state.backgroundId,
-                0, Math.max(0, state.y - 2), state.width, BACKGROUND_HEIGHT);
+                0, Math.max(0, state.y - 2), state.width, state.backgroundHeight);
         VexViewAPI.sendHUD(player, new VexBase64ImageShow(BACKGROUND_Z, background));
         state.backgroundSent = true;
     }
@@ -224,16 +229,17 @@ public class Main extends JavaPlugin implements PluginMessageListener, Listener 
         }
     }
 
-    private byte[] getBackgroundImage(int width) {
-        byte[] image = this.backgroundImages.get(width);
+    private byte[] getBackgroundImage(int width, int height) {
+        String key = width + ":" + height;
+        byte[] image = this.backgroundImages.get(key);
         if (image != null) {
             return image;
         }
-        BufferedImage background = new BufferedImage(width, BACKGROUND_HEIGHT, BufferedImage.TYPE_INT_ARGB);
+        BufferedImage background = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         Graphics2D graphics = background.createGraphics();
         int alpha = (int) Math.round((1 - this.backgroundTransparency) * 255);
         graphics.setColor(new Color(0, 0, 0, alpha));
-        graphics.fillRect(0, 0, width, BACKGROUND_HEIGHT);
+        graphics.fillRect(0, 0, width, height);
         graphics.dispose();
         try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             ImageIO.write(background, "png", output);
@@ -241,7 +247,7 @@ public class Main extends JavaPlugin implements PluginMessageListener, Listener 
         } catch (IOException exception) {
             image = new byte[0];
         }
-        this.backgroundImages.put(width, image);
+        this.backgroundImages.put(key, image);
         return image;
     }
 
@@ -291,23 +297,7 @@ public class Main extends JavaPlugin implements PluginMessageListener, Listener 
     }
 
     private int getCharacterWidth(char character) {
-        if (character == ' ') {
-            return 4;
-        }
-        if ("ilI!.,:;'|".indexOf(character) >= 0) {
-            return 3;
-        }
-        if (character >= 0x2E80) {
-            return 8;
-        }
-        return 7;
-    }
-
-    private List<String> splitText(String text) {
-        String[] lines = text.split("\\r?\\n", -1);
-        List<String> result = new ArrayList<>();
-        Collections.addAll(result, lines);
-        return result;
+        return FlowLayout.characterWidth(character);
     }
 
     private int getFlowTime(int width, int textWidth) {
@@ -329,6 +319,7 @@ public class Main extends JavaPlugin implements PluginMessageListener, Listener 
         private int width;
         private int height;
         private int y;
+        private int backgroundHeight;
         private boolean backgroundSent;
 
         private FlowState(UUID uuid) {
