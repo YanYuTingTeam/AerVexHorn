@@ -5,3 +5,8 @@ flowview:
 servershout:
   channels:
     - "SHOUT_CHANNEL"
+
+  # Empty: legacy protocol; requires a trusted proxy that blocks client cast packets
+  # and a backend protected from direct connections. Set the same 64-digit hex key
+  # on ServerShout to require authenticated v4 packets and reject legacy packets.
+  hmac-key: ""
