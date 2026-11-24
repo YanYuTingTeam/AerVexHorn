@@ -13,7 +13,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -43,15 +42,8 @@ public class Main extends JavaPlugin implements PluginMessageListener, Listener 
     private static final int BACKGROUND_Z = 0;
     private Set<String> channels = Collections.emptySet();
     private final Map<UUID, FlowState> flows = new HashMap<>();
-    private final Map<String, byte[]> backgroundImages = new LinkedHashMap<String, byte[]>(64, 0.75f, true) {
-        @Override
-        protected boolean removeEldestEntry(Map.Entry<String, byte[]> eldest) {
-            return size() > 64;
-        }
-    };
+    private final Map<String, byte[]> backgroundImages = new HashMap<>();
     private BukkitRunnable flowTask;
-    private MessageGuard messageGuard;
-    private PacketAuthenticator authenticator;
     private int flowHeight;
     private double backgroundTransparency;
 
@@ -59,21 +51,6 @@ public class Main extends JavaPlugin implements PluginMessageListener, Listener 
     public void onEnable() {
         this.saveDefaultConfig();
         this.channels = new HashSet<>(this.getConfig().getStringList("servershout.channels"));
-        try {
-            this.authenticator = new PacketAuthenticator(this.getConfig().getString("servershout.hmac-key", ""));
-        } catch (IllegalArgumentException exception) {
-            getLogger().severe("Invalid servershout.hmac-key: expected 64 hexadecimal characters; disabling plugin.");
-            Bukkit.getPluginManager().disablePlugin(this);
-            return;
-        }
-        this.messageGuard = new MessageGuard(
-                this.limit(this.getConfig().getInt("limits.text-characters", 512), 1, 4096),
-                this.limit(this.getConfig().getInt("limits.text-lines", 8), 1, 32),
-                this.limit(this.getConfig().getInt("limits.packets-per-carrier-per-second", 2048), 1, 10000),
-                this.limit(this.getConfig().getInt("limits.packets-total-per-second", 4096), 1, 20000));
-        if (!this.authenticator.isEnabled()) {
-            getLogger().warning("Unauthenticated ServerShout mode: block client cast messages at the proxy and prevent direct access to this backend.");
-        }
         this.flowHeight = this.limit(this.getConfig().getInt("flowview.height", 15), 0, 100);
         this.backgroundTransparency = this.limit(this.getConfig().getDouble("flowview.background-transparency", 0.35), 0, 1);
         Bukkit.getMessenger().registerIncomingPluginChannel(this, CHANNEL, this);
@@ -109,25 +86,10 @@ public class Main extends JavaPlugin implements PluginMessageListener, Listener 
         if (!this.isEnabled() || !CHANNEL.equals(channel) || data.length > Messenger.MAX_MESSAGE_SIZE) {
             return;
         }
-        if (!this.messageGuard.allowPacket(player.getUniqueId(), System.nanoTime())) {
-            return;
-        }
         try (DataInputStream input = new DataInputStream(new ByteArrayInputStream(data))) {
             int version = input.readUnsignedByte();
             String playerId = null;
-            long timestamp = 0;
-            long nonceHigh = 0;
-            long nonceLow = 0;
-            if (version == 4 && this.authenticator.isEnabled()) {
-                int type = input.readUnsignedByte();
-                if (type != 1 && type != 2) return;
-                timestamp = input.readLong();
-                nonceHigh = input.readLong();
-                nonceLow = input.readLong();
-                if (type == 2) playerId = input.readUTF();
-            } else if (this.authenticator.isEnabled()) {
-                return;
-            } else if (version == 2) {
+            if (version == 2) {
                 playerId = input.readUTF();
             } else if (version == 3 && input.readUnsignedByte() != BROADCAST_TYPE) {
                 return;
@@ -139,12 +101,7 @@ public class Main extends JavaPlugin implements PluginMessageListener, Listener 
             UUID uuid = playerId == null ? null : UUID.fromString(playerId);
             if ((playerId != null && !uuid.toString().equals(playerId)) || channelName.isEmpty()
                     || !this.channels.contains(channelName)
-                    || !this.messageGuard.isTextAllowed(text)) {
-                return;
-            }
-            if (version == 4) {
-                if (input.available() != 32 || !this.authenticator.verify(data, timestamp, nonceHigh, nonceLow, System.currentTimeMillis())) return;
-            } else if (input.available() != 0) {
+                    || input.available() != 0) {
                 return;
             }
             String safeText = FlowLayout.safeText(text);
@@ -181,7 +138,6 @@ public class Main extends JavaPlugin implements PluginMessageListener, Listener 
 
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
-        this.messageGuard.removePlayer(event.getPlayer().getUniqueId());
         FlowState state = this.flows.remove(event.getPlayer().getUniqueId());
         if (state != null) {
             this.clearFlow(event.getPlayer(), state);
@@ -209,9 +165,6 @@ public class Main extends JavaPlugin implements PluginMessageListener, Listener 
         int x = state.width;
         for (FlowMessage message : state.messages) {
             x = Math.max(x, message.x + message.width + FLOW_GAP);
-        }
-        if (state.messages.size() >= MessageGuard.MAX_QUEUED_PER_PLAYER) {
-            return;
         }
         FlowMessage message = new FlowMessage("aervexhorn-flow-" + UUID.randomUUID(), text,
                 x, this.getTextWidth(text));
@@ -301,7 +254,7 @@ public class Main extends JavaPlugin implements PluginMessageListener, Listener 
     private int getWindowWidth(Player player) {
         try {
             int width = VexViewAPI.getPlayerClientWindowWidth(player);
-            return width > 0 ? Math.min(width, 4096) : DEFAULT_WINDOW_WIDTH;
+            return width > 0 ? width : DEFAULT_WINDOW_WIDTH;
         } catch (RuntimeException ignored) {
             return DEFAULT_WINDOW_WIDTH;
         }
@@ -310,7 +263,7 @@ public class Main extends JavaPlugin implements PluginMessageListener, Listener 
     private int getWindowHeight(Player player) {
         try {
             int height = VexViewAPI.getPlayerClientWindowHeight(player);
-            return height > 0 ? Math.min(height, 2160) : DEFAULT_WINDOW_HEIGHT;
+            return height > 0 ? height : DEFAULT_WINDOW_HEIGHT;
         } catch (RuntimeException ignored) {
             return DEFAULT_WINDOW_HEIGHT;
         }

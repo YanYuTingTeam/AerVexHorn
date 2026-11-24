@@ -13,8 +13,12 @@ mvn clean package
 
 The output is `target/AerVexHorn-1.0.jar`. The VexView server plugin is a provided dependency and must also be installed on the server. A VexView client mod is not a substitute for the server plugin JAR.
 
-## Configuration and security
+## Configuration and display
 
 Set `servershout.channels` to the ServerShout channel names to display. The forwarding protocol requires a compatible ServerShout build; not all ServerShout versions provide it.
 
-See [SECURITY.md](SECURITY.md) for the authentication setup, legacy-mode network requirements, and resource limits. The default empty key retains compatibility with the existing protocol and relies on a trusted proxy and restricted backend access. To enable authenticated messages, upgrade both ServerShout and AerVexHorn and configure the same secret on both ends.
+The existing `servershout:cast` v2 directed and v3 broadcast protocols remain supported. A v3 broadcast displays once for every online player on the receiving backend. This update works with the existing v2/v3 sender and does not require ServerShout PR #2.
+
+Messages continue scrolling out through the left edge without VexView interpreting negative X coordinates as another anchor. Multiline backgrounds follow the text height, and the bottom position keeps the visible lines inside the window. The leading `<` in VexView delimiter sequences (`<S>`, `<#>`, `<##>`, `<#&>`, `<&>`) is replaced with `＜` for display, preserving other text and formatting.
+
+Run `mvn clean verify` for the display regression checks. Full proxy/backend/client rendering still needs an in-game check. Use the existing proxy interception of client `servershout:cast` messages and restrict direct access to the backend to trusted proxies.
