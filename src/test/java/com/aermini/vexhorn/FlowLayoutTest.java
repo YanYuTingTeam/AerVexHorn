@@ -5,6 +5,8 @@ import java.util.Arrays;
 public final class FlowLayoutTest {
     @org.junit.Test
     public void checks() {
+        equal("hello ＜S> ＜#> ＜##> ＜#&> ＜&> <ordinary>",
+                FlowLayout.safeText("hello <S> <#> <##> <#&> <&> <ordinary>"));
         equal(Arrays.asList("ABC"), FlowLayout.visibleLines("ABC", 0, 480));
         equal(Arrays.asList("ABC"), FlowLayout.visibleLines("ABC", -6, 480));
         equal(Arrays.asList("BC"), FlowLayout.visibleLines("ABC", -7, 480));

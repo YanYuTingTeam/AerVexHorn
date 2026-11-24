@@ -147,7 +147,8 @@ public class Main extends JavaPlugin implements PluginMessageListener, Listener 
             } else if (input.available() != 0) {
                 return;
             }
-            Runnable task = uuid == null ? () -> this.broadcast(text) : () -> this.send(uuid, text);
+            String safeText = FlowLayout.safeText(text);
+            Runnable task = uuid == null ? () -> this.broadcast(safeText) : () -> this.send(uuid, safeText);
             if (Bukkit.isPrimaryThread()) {
                 task.run();
             } else {

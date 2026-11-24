@@ -8,4 +8,6 @@ V4 wire format is big-endian: byte version 4, byte type (1 broadcast, 2 directed
 
 By default incoming packets are limited to 2048 per carrier and 4096 globally per second. Messages must contain 1–512 UTF-16 code units and at most eight lines; other control characters are rejected. These values are configurable under `limits` and should be sized for the expected proxy fan-out and server capacity. Each player's queue holds at most 20 messages, and overflow is discarded. These hard limits can drop bursts of otherwise legitimate messages. Window dimensions are clamped to 4096 by 2160 before creating the background image, and at most 64 size-specific images are cached.
 
+VexView uses unescaped text delimiters in its HUD protocol. In displayed messages only, the leading `<` in those delimiter sequences is replaced with `＜` so user text cannot corrupt the packet. The signed original text is verified before this conversion.
+
 `mvn test` runs the security and layout checks, including an independent HMAC vector, replay and timestamp checks, invalid keys, rate limits, and text bounds. Full proxy/backend/client integration testing is still required.
