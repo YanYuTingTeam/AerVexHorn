@@ -3,8 +3,8 @@ package com.aermini.vexhorn;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.UUID;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -12,9 +12,11 @@ import javax.crypto.spec.SecretKeySpec;
 /** HMAC v4 messages are accepted once during their validity window. */
 final class PacketAuthenticator {
     private static final long CLOCK_SKEW_MS = 60_000L;
-    private static final int MAX_NONCES = 10_000;
+    // Capacity covers one minute at the default global limit, while remaining bounded.
+    private static final int MAX_NONCES = 262_144;
     private final byte[] key;
     private final Map<UUID, Long> nonces = new HashMap<>();
+    private final PriorityQueue<Expiry> expiries = new PriorityQueue<>((a, b) -> Long.compare(a.time, b.time));
 
     PacketAuthenticator(String hex) {
         if (hex == null || hex.isEmpty()) { key = null; return; }
@@ -37,11 +39,20 @@ final class PacketAuthenticator {
         } catch (GeneralSecurityException exception) {
             throw new IllegalStateException("HmacSHA256 unavailable", exception);
         }
-        Iterator<Map.Entry<UUID, Long>> it = nonces.entrySet().iterator();
-        while (it.hasNext()) if (it.next().getValue() < now) it.remove();
+        while (!expiries.isEmpty() && expiries.peek().time < now) {
+            nonces.remove(expiries.remove().nonce);
+        }
         UUID nonce = new UUID(high, low);
         if (nonces.containsKey(nonce) || nonces.size() >= MAX_NONCES) return false;
-        nonces.put(nonce, timestamp + CLOCK_SKEW_MS);
+        long expires = timestamp + CLOCK_SKEW_MS;
+        nonces.put(nonce, expires);
+        expiries.add(new Expiry(nonce, expires));
         return true;
+    }
+
+    private static final class Expiry {
+        final UUID nonce;
+        final long time;
+        Expiry(UUID nonce, long time) { this.nonce = nonce; this.time = time; }
     }
 }

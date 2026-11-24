@@ -2,15 +2,15 @@ package com.aermini.vexhorn;
 
 import java.util.UUID;
 
-/** Run directly with javac/java; requires no server or third-party libraries. */
-public final class SecurityChecks {
+public final class SecurityChecksTest {
     private static void check(boolean value, String message) { if (!value) throw new AssertionError(message); }
     private static byte[] hex(String value) {
         byte[] result = new byte[value.length() / 2];
         for (int i = 0; i < result.length; i++) result[i] = (byte) Integer.parseInt(value.substring(i * 2, i * 2 + 2), 16);
         return result;
     }
-    public static void main(String[] args) {
+    @org.junit.Test
+    public void checks() {
         String key = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
         String signed = "04010000018bcfe5680001020304050607081112131415161718000d53484f55545f4348414e4e454c000568656c6c6f2a023dca2629c5020722dc77a588a7d42e30bf123bcb825b7848c3c4c0f0c215";
         byte[] packet = hex(signed);
