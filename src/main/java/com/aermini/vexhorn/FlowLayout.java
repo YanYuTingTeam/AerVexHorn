@@ -11,6 +11,15 @@ final class FlowLayout {
     private FlowLayout() {
     }
 
+    /** Prevent user text from being interpreted as VexView HUD protocol fields. */
+    static String safeText(String text) {
+        return text.replace("<S>", "＜S>")
+                .replace("<#>", "＜#>")
+                .replace("<##>", "＜##>")
+                .replace("<#&>", "＜#&>")
+                .replace("<&>", "＜&>");
+    }
+
     static int characterWidth(char character) {
         if (character == ' ') return 4;
         if ("ilI!.,:;'|".indexOf(character) >= 0) return 3;
