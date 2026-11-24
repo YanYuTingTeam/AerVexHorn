@@ -10,3 +10,10 @@ servershout:
   # and a backend protected from direct connections. Set the same 64-digit hex key
   # on ServerShout to require authenticated v4 packets and reject legacy packets.
   hmac-key: ""
+
+# Raise packet rates when a proxy forwards very large fan-outs on one carrier.
+limits:
+  text-characters: 512
+  text-lines: 8
+  packets-per-carrier-per-second: 2048
+  packets-total-per-second: 4096

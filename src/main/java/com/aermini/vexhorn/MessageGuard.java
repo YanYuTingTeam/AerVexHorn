@@ -7,11 +7,20 @@ import java.util.UUID;
 /** Resource limits for untrusted incoming messages. */
 final class MessageGuard {
     static final int MAX_QUEUED_PER_PLAYER = 20;
-    private static final int MAX_TEXT_CHARS = 512;
-    private static final int MAX_LINES = 4;
+    private final int maxTextChars;
+    private final int maxLines;
+    private final int perSourceLimit;
+    private final int totalLimit;
     private static final long WINDOW_NANOS = 1_000_000_000L;
     private final Map<UUID, Window> sources = new HashMap<>();
     private final Window total = new Window();
+
+    MessageGuard(int maxTextChars, int maxLines, int perSourceLimit, int totalLimit) {
+        this.maxTextChars = maxTextChars;
+        this.maxLines = maxLines;
+        this.perSourceLimit = perSourceLimit;
+        this.totalLimit = totalLimit;
+    }
 
     synchronized boolean allowPacket(UUID source, long now) {
         Window window = sources.get(source);
@@ -19,19 +28,19 @@ final class MessageGuard {
             window = new Window();
             sources.put(source, window);
         }
-        return window.take(now, 20) && total.take(now, 100);
+        return window.take(now, perSourceLimit) && total.take(now, totalLimit);
     }
 
     synchronized void removePlayer(UUID source) {
         sources.remove(source);
     }
 
-    static boolean isTextAllowed(String text) {
-        if (text.isEmpty() || text.length() > MAX_TEXT_CHARS) return false;
+    boolean isTextAllowed(String text) {
+        if (text.isEmpty() || text.length() > maxTextChars) return false;
         int lines = 1;
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
-            if (c == '\n' && ++lines > MAX_LINES) return false;
+            if (c == '\n' && ++lines > maxLines) return false;
             if ((c < 32 && c != '\n' && c != '\r') || c == 127) return false;
         }
         return true;

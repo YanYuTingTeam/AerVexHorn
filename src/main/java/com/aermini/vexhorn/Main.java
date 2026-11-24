@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -42,7 +43,12 @@ public class Main extends JavaPlugin implements PluginMessageListener, Listener 
     private static final int BACKGROUND_Z = 0;
     private Set<String> channels = Collections.emptySet();
     private final Map<UUID, FlowState> flows = new HashMap<>();
-    private final Map<String, byte[]> backgroundImages = new HashMap<>();
+    private final Map<String, byte[]> backgroundImages = new LinkedHashMap<String, byte[]>(64, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, byte[]> eldest) {
+            return size() > 64;
+        }
+    };
     private BukkitRunnable flowTask;
     private MessageGuard messageGuard;
     private PacketAuthenticator authenticator;
@@ -60,7 +66,11 @@ public class Main extends JavaPlugin implements PluginMessageListener, Listener 
             Bukkit.getPluginManager().disablePlugin(this);
             return;
         }
-        this.messageGuard = new MessageGuard();
+        this.messageGuard = new MessageGuard(
+                this.limit(this.getConfig().getInt("limits.text-characters", 512), 1, 4096),
+                this.limit(this.getConfig().getInt("limits.text-lines", 8), 1, 32),
+                this.limit(this.getConfig().getInt("limits.packets-per-carrier-per-second", 2048), 1, 10000),
+                this.limit(this.getConfig().getInt("limits.packets-total-per-second", 4096), 1, 20000));
         if (!this.authenticator.isEnabled()) {
             getLogger().warning("Unauthenticated ServerShout mode: block client cast messages at the proxy and prevent direct access to this backend.");
         }
@@ -129,7 +139,7 @@ public class Main extends JavaPlugin implements PluginMessageListener, Listener 
             UUID uuid = playerId == null ? null : UUID.fromString(playerId);
             if ((playerId != null && !uuid.toString().equals(playerId)) || channelName.isEmpty()
                     || !this.channels.contains(channelName)
-                    || !MessageGuard.isTextAllowed(text)) {
+                    || !this.messageGuard.isTextAllowed(text)) {
                 return;
             }
             if (version == 4) {
