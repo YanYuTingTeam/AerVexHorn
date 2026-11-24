@@ -24,17 +24,20 @@ public final class SecurityChecks {
         check(!new PacketAuthenticator(key).verify(packet, now, hi, lo, now + 60001), "stale packet accepted");
         check(!new PacketAuthenticator(key).verify(packet, now, hi, lo, now - 60001), "future packet accepted");
         try { new PacketAuthenticator("broken"); throw new AssertionError("bad key accepted"); } catch (IllegalArgumentException expected) { }
-        MessageGuard limiter = new MessageGuard();
+        MessageGuard limiter = new MessageGuard(512, 8, 20, 100);
         UUID player = UUID.randomUUID();
         for (int i = 0; i < 20; i++) check(limiter.allowPacket(player, 1), "valid packet dropped");
         check(!limiter.allowPacket(player, 1), "per-source limit bypassed");
         check(limiter.allowPacket(player, 1_000_000_001L), "rate did not reset");
-        MessageGuard global = new MessageGuard();
+        MessageGuard fanout = new MessageGuard(512, 8, 2048, 4096);
+        for (int i = 0; i < 1000; i++) check(fanout.allowPacket(player, 1), "normal large fan-out was limited");
+        MessageGuard global = new MessageGuard(512, 8, 20, 100);
         for (int i = 0; i < 100; i++) check(global.allowPacket(UUID.randomUUID(), 1), "global limit too low");
         check(!global.allowPacket(UUID.randomUUID(), 1), "global limit bypassed");
-        check(MessageGuard.isTextAllowed("hello\nworld"), "valid text rejected");
-        check(!MessageGuard.isTextAllowed(new String(new char[513]).replace('\0', 'x')), "oversized text accepted");
-        check(!MessageGuard.isTextAllowed("a\nb\nc\nd\ne"), "excessive lines accepted");
+        check(limiter.isTextAllowed("hello\nworld"), "valid text rejected");
+        check(!limiter.isTextAllowed(new String(new char[513]).replace('\0', 'x')), "oversized text accepted");
+        check(limiter.isTextAllowed("a\nb\nc\nd\ne"), "default invite rejected");
+        check(!limiter.isTextAllowed("a\nb\nc\nd\ne\nf\ng\nh\ni"), "excessive lines accepted");
         System.out.println("SecurityChecks passed");
     }
 }
