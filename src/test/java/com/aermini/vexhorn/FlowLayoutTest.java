@@ -3,7 +3,8 @@ package com.aermini.vexhorn;
 import java.util.Arrays;
 
 public final class FlowLayoutTest {
-    public static void main(String[] args) {
+    @org.junit.Test
+    public void checks() {
         equal(Arrays.asList("ABC"), FlowLayout.visibleLines("ABC", 0, 480));
         equal(Arrays.asList("ABC"), FlowLayout.visibleLines("ABC", -6, 480));
         equal(Arrays.asList("BC"), FlowLayout.visibleLines("ABC", -7, 480));
