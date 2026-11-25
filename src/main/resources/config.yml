@@ -1,7 +1,3 @@
-flowview:
-  height: 15
-  background-transparency: 0.35
-
 servershout:
   channels:
     - "SHOUT_CHANNEL"
