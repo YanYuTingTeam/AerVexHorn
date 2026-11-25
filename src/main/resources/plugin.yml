@@ -2,3 +2,4 @@ name: AerVexHorn
 main: com.aermini.vexhorn.Main
 version: 1.0
 depend: [VexView]
+softdepend: [PlaceholderAPI]
